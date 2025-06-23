@@ -12,6 +12,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
+        repository: Ponleuz12/kernel_realme_sm4250
         ref: stable
 
     - name: 📥 Clone AnyKernel3
@@ -25,20 +26,14 @@ jobs:
           -o clang.tar.gz
         tar -xf clang.tar.gz -C clang
 
-    - name: 🛠 Install Dependencies
+    - name: 🛠 Install Build Dependencies
       run: |
         sudo apt update
         sudo apt install -y bc bison build-essential cpio curl flex git libncurses-dev \
           libssl-dev python3 unzip zip zstd
 
-    - name: 🔧 Setup Build Environment
+    - name: 🔧 Set Build Environment
       run: |
-        export ARCH=arm64
-        export SUBARCH=arm64
-        export CLANG_PATH=$(pwd)/clang
-        export PATH=$CLANG_PATH/bin:$PATH
-
-        echo "KBUILD_COMPILER_STRING=$($CLANG_PATH/bin/clang --version | head -n 1)"
         echo "BUILD_USER=Ponleuz" >> $GITHUB_ENV
         echo "BUILD_HOST=GitHub" >> $GITHUB_ENV
 
@@ -58,20 +53,4 @@ jobs:
           NM=llvm-nm \
           OBJCOPY=llvm-objcopy \
           OBJDUMP=llvm-objdump \
-          STRIP=llvm-strip \
-          READELF=llvm-readelf \
-          HOSTLD=ld.lld \
-          HOSTCC=clang \
-          HOSTCXX=clang++
-
-    - name: 📦 Package with AnyKernel3
-      run: |
-        cp out/arch/arm64/boot/Image.gz-dtb anykernel/
-        cd anykernel
-        zip -r9 ../RealmeC15-ThinLTO.zip ./*
-
-    - name: 📤 Upload Kernel ZIP
-      uses: actions/upload-artifact@v4
-      with:
-        name: RealmeC15-ThinLTO
-        path: RealmeC15-ThinLTO.zip
+          STRIP=

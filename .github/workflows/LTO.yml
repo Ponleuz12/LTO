@@ -49,7 +49,7 @@ jobs:
         export CLANG_PATH=$(pwd)/clang
         export PATH=$CLANG_PATH/bin:$PATH
 
-        make O=out ARCH=arm64 RMX2195_defconfig
+        make O=out ARCH=arm64 stock_defconfig
 
         make -j$(nproc) O=out ARCH=arm64 \
           CC=clang \
@@ -71,7 +71,7 @@ jobs:
         zip -r9 ../RealmeC15-ThinLTO.zip ./*
 
     - name: 📤 Upload Kernel ZIP
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: RealmeC15-ThinLTO
         path: RealmeC15-ThinLTO.zip

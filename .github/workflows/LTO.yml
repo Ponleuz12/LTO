@@ -1,56 +1,39 @@
-name: Build Realme C15 Kernel (ThinLTO)
+#!/bin/bash
 
-on:
-  workflow_dispatch:
+set -e
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
+REPO_NAME=$1
+REPO_URL=$2
+REPO_BRANCH=$3
+DEFCONFIG=$4
 
-    steps:
-    - name: 📥 Checkout Kernel Source
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        repository: Ponleuz12/kernel_realme_sm4250
-        ref: stable
+echo ">>> Cloning kernel source: $REPO_NAME"
+git clone --depth=1 -b "$REPO_BRANCH" "$REPO_URL" "$REPO_NAME"
+cd "$REPO_NAME"
 
-    - name: 📥 Clone AnyKernel3
-      run: |
-        git clone https://github.com/insetion/AnyKernel3 -b RMX2195 anykernel
+echo ">>> Setting up Clang"
+CLANG_DIR=../clang
+export PATH="$CLANG_DIR/bin:$PATH"
 
-    - name: 📥 Download AOSP Clang (r450784d)
-      run: |
-        mkdir clang
-        curl -L https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r450784d.tar.gz \
-          -o clang.tar.gz
-        tar -xf clang.tar.gz -C clang
+echo ">>> Building with defconfig: $DEFCONFIG"
+export ARCH=arm64
+export SUBARCH=arm64
+export KBUILD_BUILD_USER=Ponleuz
+export KBUILD_BUILD_HOST=GitHub
 
-    - name: 🛠 Install Build Dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y bc bison build-essential cpio curl flex git libncurses-dev \
-          libssl-dev python3 unzip zip zstd
+make O=out ARCH=arm64 $DEFCONFIG
 
-    - name: 🔧 Set Build Environment
-      run: |
-        echo "BUILD_USER=Ponleuz" >> $GITHUB_ENV
-        echo "BUILD_HOST=GitHub" >> $GITHUB_ENV
+make -j$(nproc) O=out ARCH=arm64 \
+  CC=clang \
+  LD=ld.lld \
+  AR=llvm-ar \
+  NM=llvm-nm \
+  OBJCOPY=llvm-objcopy \
+  OBJDUMP=llvm-objdump \
+  STRIP=llvm-strip \
+  READELF=llvm-readelf \
+  HOSTLD=ld.lld \
+  HOSTCC=clang
 
-    - name: 🏗️ Build Kernel with ThinLTO
-      run: |
-        export ARCH=arm64
-        export SUBARCH=arm64
-        export CLANG_PATH=$(pwd)/clang
-        export PATH=$CLANG_PATH/bin:$PATH
-
-        make O=out ARCH=arm64 stock_defconfig
-
-        make -j$(nproc) O=out ARCH=arm64 \
-          CC=clang \
-          LD=ld.lld \
-          AR=llvm-ar \
-          NM=llvm-nm \
-          OBJCOPY=llvm-objcopy \
-          OBJDUMP=llvm-objdump \
-          STRIP=
+echo ">>> Kernel build finished"
+cp out/arch/arm64/boot/Image.gz-dtb ../output/

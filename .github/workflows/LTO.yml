@@ -1,39 +1,48 @@
-#!/bin/bash
+name: Android Kernel Builder (ThinLTO)
 
-set -e
+on:
+  workflow_dispatch:
 
-REPO_NAME=$1
-REPO_URL=$2
-REPO_BRANCH=$3
-DEFCONFIG=$4
+jobs:
+  build:
+    runs-on: ubuntu-22.04
 
-echo ">>> Cloning kernel source: $REPO_NAME"
-git clone --depth=1 -b "$REPO_BRANCH" "$REPO_URL" "$REPO_NAME"
-cd "$REPO_NAME"
+    steps:
+    - name: 📥 Checkout Builder
+      uses: actions/checkout@v3
 
-echo ">>> Setting up Clang"
-CLANG_DIR=../clang
-export PATH="$CLANG_DIR/bin:$PATH"
+    - name: 📥 Clone Clang (AOSP)
+      run: |
+        mkdir clang
+        curl -L https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r450784d.tar.gz \
+          -o clang.tar.gz
+        tar -xf clang.tar.gz -C clang
 
-echo ">>> Building with defconfig: $DEFCONFIG"
-export ARCH=arm64
-export SUBARCH=arm64
-export KBUILD_BUILD_USER=Ponleuz
-export KBUILD_BUILD_HOST=GitHub
+    - name: 🛠 Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y bc bison build-essential cpio curl flex git libncurses-dev \
+          libssl-dev python3 unzip zip zstd jq
 
-make O=out ARCH=arm64 $DEFCONFIG
+    - name: 🔃 Parse Repos & Build All
+      run: |
+        mkdir -p output
+        repos=$(cat repos.json | jq -c '.[]')
+        for repo in $repos; do
+          NAME=$(echo $repo | jq -r .name)
+          URL=$(echo $repo | jq -r .repo)
+          BRANCH=$(echo $repo | jq -r .branch)
+          DEFCONFIG=$(echo $repo | jq -r .defconfig)
+          bash build.sh "$NAME" "$URL" "$BRANCH" "$DEFCONFIG"
+        done
 
-make -j$(nproc) O=out ARCH=arm64 \
-  CC=clang \
-  LD=ld.lld \
-  AR=llvm-ar \
-  NM=llvm-nm \
-  OBJCOPY=llvm-objcopy \
-  OBJDUMP=llvm-objdump \
-  STRIP=llvm-strip \
-  READELF=llvm-readelf \
-  HOSTLD=ld.lld \
-  HOSTCC=clang
+    - name: 📦 Package All Kernels
+      run: |
+        cd output
+        zip -r9 Kernel-ThinLTO-Builds.zip *
 
-echo ">>> Kernel build finished"
-cp out/arch/arm64/boot/Image.gz-dtb ../output/
+    - name: 📤 Upload Kernel ZIP
+      uses: actions/upload-artifact@v4
+      with:
+        name: Kernel-ThinLTO-Builds
+        path: output/Kernel-ThinLTO-Builds.zip

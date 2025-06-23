@@ -1,0 +1,9 @@
+[
+  {
+    "name": "RMX2195-StarX-OC",
+    "repo": "https://github.com/Ponleuz12/kernel_realme_sm4250",
+    "branch": "stable"
+    "defconfig": "stock_defconfig",
+    "device": "Realme C15"
+  }
+]

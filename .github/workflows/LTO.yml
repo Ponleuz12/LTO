@@ -11,12 +11,13 @@ jobs:
     - name: 📥 Checkout Builder
       uses: actions/checkout@v3
 
-    - name: 📥 Clone Clang (AOSP)
+
+    - name: 📥 Download AOSP Clang r450784d
       run: |
         mkdir clang
-        curl -L https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r450784d.tar.gz \
-          -o clang.tar.gz
-        tar -xf clang.tar.gz -C clang
+        curl -LO https://github.com/ponleuz12/toolchains/releases/download/clang/aosp-clang-r450784d.tar.zst
+        tar --use-compress-program=unzstd -xf aosp-clang-r450784d.tar.zst -C clang
+    
 
     - name: 🛠 Install Dependencies
       run: |

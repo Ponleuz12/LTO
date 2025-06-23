@@ -1,92 +1,77 @@
-name: Compile Realme SM4250 Kernel with LTO
+name: Build Realme C15 Kernel (ThinLTO)
 
 on:
-  push:
-    branches:
-      - main  # Trigger on push to main branch of your new repo
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout Kernel Source
-        uses: actions/checkout@v4
-        with:
-          repository: Ponleuz12/kernel_realme_sm4250
-          ref: stable
-          fetch-depth: 1
+    - name: 📥 Checkout Kernel Source
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        ref: stable
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git bc bison flex libssl-dev make python3 \
-            gcc-aarch64-linux-gnu clang lld cpio zip
-          if [ $? -ne 0 ]; then
-            echo "Failed to install dependencies"
-            exit 1
-          fi
+    - name: 📥 Clone AnyKernel3
+      run: |
+        git clone https://github.com/insetion/AnyKernel3 -b RMX2195 anykernel
 
-      - name: Set Up Toolchain
-        run: |
-          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git toolchain || {
-            echo "Failed to clone toolchain"
-            exit 1
-          }
-          export PATH=$PWD/toolchain/bin:$PATH
-          clang --version
+    - name: 📥 Download AOSP Clang (r450784d)
+      run: |
+        mkdir clang
+        curl -L https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r450784d.tar.gz \
+          -o clang.tar.gz
+        tar -xf clang.tar.gz -C clang
 
-      - name: Configure Kernel Build
-        run: |
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CC=clang
-          export LD=ld.lld
-          make O=out stock_defconfig || {
-            echo "Defconfig failed. Available defconfigs:"
-            ls -l arch/arm64/configs/
-            exit 1
-          }
-          # Enable LTO
-          sed -i 's/# CONFIG_LTO_CLANG is not set/CONFIG_LTO_CLANG=y/' out/.config || {
-            echo "Failed to enable CONFIG_LTO_CLANG"
-            exit 1
-          }
-          sed -i 's/# CONFIG_THINLTO is not set/CONFIG_THINLTO=y/' out/.config || {
-            echo "Failed to enable CONFIG_THINLTO"
-            exit 1
-          }
-          cat out/.config | grep -E "CONFIG_LTO_CLANG|CONFIG_THINLTO"
+    - name: 🛠 Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y bc bison build-essential cpio curl flex git libncurses-dev \
+          libssl-dev python3 unzip zip zstd
 
-      - name: Build Kernel
-        run: |
-          make O=out -j$(nproc) || {
-            echo "Kernel build failed"
-            ls -l out/arch/arm64/boot/
-            exit 1
-          }
+    - name: 🔧 Setup Build Environment
+      run: |
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CLANG_PATH=$(pwd)/clang
+        export PATH=$CLANG_PATH/bin:$PATH
 
-      - name: Package Kernel
-        run: |
-          mkdir -p kernel-package
-          cp out/arch/arm64/boot/Image.gz-dtb kernel-package/ || {
-            echo "Failed to copy Image.gz-dtb"
-            ls -l out/arch/arm64/boot/
-            exit 1
-          }
-          cp out/.config kernel-package/config
-          zip -r kernel-package.zip kernel-package/
+        echo "KBUILD_COMPILER_STRING=$($CLANG_PATH/bin/clang --version | head -n 1)"
+        echo "BUILD_USER=Ponleuz" >> $GITHUB_ENV
+        echo "BUILD_HOST=GitHub" >> $GITHUB_ENV
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-build
-          path: kernel-package.zip
-          if-no-files-found: error
+    - name: 🏗️ Build Kernel with ThinLTO
+      run: |
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CLANG_PATH=$(pwd)/clang
+        export PATH=$CLANG_PATH/bin:$PATH
 
-      - name: Verify Build
-        run: |
-          ls -lh kernel-package/
-          file kernel-package/Image.gz-dtb
+        make O=out ARCH=arm64 RMX2195_defconfig
+
+        make -j$(nproc) O=out ARCH=arm64 \
+          CC=clang \
+          LD=ld.lld \
+          AR=llvm-ar \
+          NM=llvm-nm \
+          OBJCOPY=llvm-objcopy \
+          OBJDUMP=llvm-objdump \
+          STRIP=llvm-strip \
+          READELF=llvm-readelf \
+          HOSTLD=ld.lld \
+          HOSTCC=clang \
+          HOSTCXX=clang++
+
+    - name: 📦 Package with AnyKernel3
+      run: |
+        cp out/arch/arm64/boot/Image.gz-dtb anykernel/
+        cd anykernel
+        zip -r9 ../RealmeC15-ThinLTO.zip ./*
+
+    - name: 📤 Upload Kernel ZIP
+      uses: actions/upload-artifact@v3
+      with:
+        name: RealmeC15-ThinLTO
+        path: RealmeC15-ThinLTO.zip

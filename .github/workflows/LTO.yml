@@ -1,49 +1,87 @@
-name: Android Kernel Builder (ThinLTO)
+name: 🛠 Build Kernel - Proton Clang 11 (LTO Disabled)
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 Checkout Builder
-      uses: actions/checkout@v3
+    - name: 📥 Checkout Kernel Source
+      uses: actions/checkout@v4
+      with:
+        repository: Ponleuz12/kernel_realme_sm4250
+        ref: stable
+        path: kernel
 
-
-    - name: 📥 Download AOSP Clang r450784d
-      run: |
-        mkdir clang
-        curl -LO https://github.com/ponleuz12/toolchains/releases/download/clang/aosp-clang-r450784d.tar.zst
-        tar --use-compress-program=unzstd -xf aosp-clang-r450784d.tar.zst -C clang
-    
-
-    - name: 🛠 Install Dependencies
+    - name: 🧰 Install Dependencies
       run: |
         sudo apt update
-        sudo apt install -y bc bison build-essential cpio curl flex git libncurses-dev \
-          libssl-dev python3 unzip zip zstd jq
+        sudo apt install -y bc bison flex libssl-dev make libncurses5-dev ccache curl git zstd
 
-    - name: 🔃 Parse Repos & Build All
+    - name: 📦 Download & Extract Proton Clang 11.0.0
       run: |
-        mkdir -p output
-        repos=$(cat repos.json | jq -c '.[]')
-        for repo in $repos; do
-          NAME=$(echo $repo | jq -r .name)
-          URL=$(echo $repo | jq -r .repo)
-          BRANCH=$(echo $repo | jq -r .branch)
-          DEFCONFIG=$(echo $repo | jq -r .defconfig)
-          bash build.sh "$NAME" "$URL" "$BRANCH" "$DEFCONFIG"
-        done
+        mkdir -p clang
+        curl -L "https://github.com/kdrag0n/proton-clang-build/releases/download/20200117/proton_clang-11.0.0-20200117.tar.zst" -o clang.tar.zst
+        tar --zstd -xf clang.tar.zst -C clang --strip-components=1
 
-    - name: 📦 Package All Kernels
+    - name: ⚙️ Configure Kernel (stock_defconfig)
+      working-directory: kernel
       run: |
-        cd output
-        zip -r9 Kernel-ThinLTO-Builds.zip *
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        export CLANG_TRIPLE=aarch64-linux-gnu-
 
-    - name: 📤 Upload Kernel ZIP
+        make O=out stock_defconfig
+
+        # Disable LTO
+        scripts/config --file out/.config \
+          -d LTO_CLANG \
+          -d LTO_NONE \
+          -d LTO \
+          -d THINLTO \
+          -e LTO_NONE
+
+        make O=out olddefconfig
+
+    - name: 🧱 Build Kernel
+      working-directory: kernel
+      run: |
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        export LLVM=1
+        export LLVM_IAS=1
+
+        make -j$(nproc) O=out \
+          CC=clang \
+          AR=llvm-ar \
+          NM=llvm-nm \
+          OBJCOPY=llvm-objcopy \
+          OBJDUMP=llvm-objdump \
+          STRIP=llvm-strip \
+          READELF=llvm-readelf \
+          LD=ld.lld
+
+    - name: 📂 Clone AnyKernel3
+      run: |
+        git clone --depth=1 https://github.com/insetion/AnyKernel3.git AnyKernel3
+
+    - name: 📦 Prepare Flashable Zip
+      run: |
+        cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+        cd AnyKernel3
+        zip -r9 ../kernel-flashable.zip *
+
+    - name: 📤 Upload Flashable Zip
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-ThinLTO-Builds
-        path: output/Kernel-ThinLTO-Builds.zip
+        name: Realme-Kernel-Zip
+        path: kernel-flashable.zip

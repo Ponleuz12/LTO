@@ -23,10 +23,11 @@ jobs:
 
     - name: 📦 Download Proton Clang 11.0.1
       run: |
+        sudo apt install -y zstd  # ✅ REQUIRED to extract .zst
         mkdir clang
         curl -LO https://github.com/kdrag0n/proton-clang/releases/download/2021.11.14/proton-clang-20211114.tar.zst
-        tar -I zstd -xf proton-clang-20211114.tar.zst -C clang --strip-components=1
-
+        tar --use-compress-program=unzstd -xvf proton-clang-20211114.tar.zst -C clang --strip-components=1
+        
     - name: 🧰 Setup Environment
       run: |
         echo "CLANG_PATH=$(pwd)/clang/bin" >> $GITHUB_ENV

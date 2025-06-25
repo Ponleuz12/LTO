@@ -20,6 +20,10 @@ jobs:
         sudo apt update
         sudo apt install -y bc bison flex libssl-dev make \
           gcc clang curl git libncurses-dev lld zstd
+    - name: 📦 Install Binutils Libs
+      run: |
+        sudo apt update
+        sudo apt install -y binutils-dev
 
     - name: 📦 Download Proton Clang 11.0.0 (20200117)
       run: |

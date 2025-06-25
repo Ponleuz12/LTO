@@ -1,4 +1,4 @@
-name: 🛠 Build Kernel - Proton Clang 11 (LTO Disabled)
+name: 🛠 Build Kernel - Proton Clang 11.0.0
 
 on:
   workflow_dispatch:
@@ -19,15 +19,15 @@ jobs:
       run: |
         sudo apt update
         sudo apt install -y bc bison flex libssl-dev make \
-          gcc clang curl git libncurses-dev lld
+          gcc clang curl git libncurses-dev lld zstd
 
-    - name: 📦 Download Proton Clang 11.0.1
+    - name: 📦 Download Proton Clang 11.0.0 (20200117)
       run: |
-        sudo apt install -y zstd  # ✅ REQUIRED to extract .zst
         mkdir clang
-        curl -LO https://github.com/kdrag0n/proton-clang/releases/download/2021.11.14/proton-clang-20211114.tar.zst
-        tar --use-compress-program=unzstd -xvf proton-clang-20211114.tar.zst -C clang --strip-components=1
-        
+        curl -LO https://github.com/kdrag0n/proton-clang-build/releases/download/20200117/proton_clang-11.0.0-20200117.tar.zst
+        unzstd proton_clang-11.0.0-20200117.tar.zst
+        tar -xf proton_clang-11.0.0-20200117.tar -C clang --strip-components=1
+
     - name: 🧰 Setup Environment
       run: |
         echo "CLANG_PATH=$(pwd)/clang/bin" >> $GITHUB_ENV
@@ -55,7 +55,7 @@ jobs:
           OBJDUMP=llvm-objdump \
           STRIP=llvm-strip
 
-    - name: 📤 Upload zImage
+    - name: 📤 Upload Kernel Image
       uses: actions/upload-artifact@v4
       with:
         name: Kernel Image

@@ -15,69 +15,47 @@ jobs:
         ref: stable
         path: kernel
 
-    - name: 🧰 Install Dependencies
+    - name: 🔧 Install Dependencies
       run: |
         sudo apt update
-        sudo apt install -y bc bison flex libssl-dev make libncurses5-dev ccache curl git zstd
+        sudo apt install -y bc bison flex libssl-dev make \
+          gcc clang curl git libncurses-dev lld
 
-    - name: 📦 Download & Extract Proton Clang 11.0.0
+    - name: 📦 Download Proton Clang 11.0.1
       run: |
-        mkdir -p clang
-        curl -L "https://github.com/kdrag0n/proton-clang-build/releases/download/20200117/proton_clang-11.0.0-20200117.tar.zst" -o clang.tar.zst
-        tar --zstd -xf clang.tar.zst -C clang --strip-components=1
+        mkdir clang
+        curl -LO https://github.com/kdrag0n/proton-clang/releases/download/2021.11.14/proton-clang-20211114.tar.zst
+        tar -I zstd -xf proton-clang-20211114.tar.zst -C clang --strip-components=1
 
-    - name: ⚙️ Configure Kernel (stock_defconfig + disable LTO)
-      working-directory: kernel
+    - name: 🧰 Setup Environment
       run: |
-        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        echo "CLANG_PATH=$(pwd)/clang/bin" >> $GITHUB_ENV
+        echo "KERNEL_DIR=$(pwd)/kernel" >> $GITHUB_ENV
+
+    - name: 🛠 Build Kernel
+      working-directory: ${{ env.KERNEL_DIR }}
+      run: |
         export ARCH=arm64
         export SUBARCH=arm64
-        export LLVM=1
-        export LLVM_IAS=1
-        export CC=clang
         export CLANG_TRIPLE=aarch64-linux-gnu-
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+        export PATH=${{ env.CLANG_PATH }}:$PATH
 
         make O=out stock_defconfig
+        make -j$(nproc --all) O=out \
+          CC=clang \
+          CROSS_COMPILE=aarch64-linux-gnu- \
+          CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+          LD=ld.lld \
+          AR=llvm-ar \
+          NM=llvm-nm \
+          OBJCOPY=llvm-objcopy \
+          OBJDUMP=llvm-objdump \
+          STRIP=llvm-strip
 
-        # Disable all LTO configs manually using sed
-        sed -i '/CONFIG_LTO/d' out/.config
-        sed -i '/CONFIG_THINLTO/d' out/.config
-        echo "CONFIG_LTO_NONE=y" >> out/.config
-
-        make O=out olddefconfig
-
-    - name: 🧱 Build Kernel
-      working-directory: kernel
-      run: |
-        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-        export ARCH=arm64
-        export SUBARCH=arm64
-        export LLVM=1
-        export LLVM_IAS=1
-        export CC=clang
-        export CLANG_TRIPLE=aarch64-linux-gnu-
-        export AR=llvm-ar
-        export NM=llvm-nm
-        export OBJCOPY=llvm-objcopy
-        export OBJDUMP=llvm-objdump
-        export STRIP=llvm-strip
-        export READELF=llvm-readelf
-        export LD=ld.lld
-
-        make -j$(nproc) O=out
-
-    - name: 📂 Clone AnyKernel3
-      run: |
-        git clone --depth=1 https://github.com/insetion/AnyKernel3.git AnyKernel3
-
-    - name: 📦 Prepare Flashable Zip
-      run: |
-        cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-        cd AnyKernel3
-        zip -r9 ../kernel-flashable.zip *
-
-    - name: 📤 Upload Flashable Zip
+    - name: 📤 Upload zImage
       uses: actions/upload-artifact@v4
       with:
-        name: Realme-Kernel-Zip
-        path: kernel-flashable.zip
+        name: Kernel Image
+        path: kernel/out/arch/arm64/boot/Image.gz-dtb

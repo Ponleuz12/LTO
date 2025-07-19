@@ -16,12 +16,9 @@ jobs:
           git clone --depth=1 --branch stable https://github.com/Ponleuz12/kernel_realme_sm4250.git kernel_source
 
       - name: Setup Clang 11.0.1
-        run: |
-          mkdir clang
-          cd clang
-          wget https://github.com/techyminati/android_prebuilts_clang_host_linux-x86_clang-6443078 -O clang.tar.gz
-          tar -xf clang.tar.gz
-          cd ..
+        run: | 
+          git clone --depth=1 https://github.com/techyminati/android_prebuilts_clang_host_linux-x86_clang-6443078 clang
+          
 
       - name: Install Dependencies
         run: |

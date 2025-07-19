@@ -1,0 +1,40 @@
+name: Build Realme SM4250 Kernel (Stable, Clang 11)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - stable
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04  # ✅ Upgraded to latest LTS
+
+    steps:
+      - name: Checkout Kernel Source (Stable Branch)
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+
+      - name: Setup Clang 11.0.1
+        run: |
+          mkdir clang
+          cd clang
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r383902b.tar.gz -O clang.tar.gz
+          tar -xf clang.tar.gz
+          cd ..
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex gcc-aarch64-linux-gnu \
+              gcc-arm-linux-gnueabi libssl-dev make python3
+
+      - name: Build Kernel
+        run: bash build2.sh
+
+      - name: Upload Image.gz-dtb
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-Image
+          path: Image.gz-dtb

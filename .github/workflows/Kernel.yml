@@ -19,7 +19,7 @@ jobs:
         run: |
           mkdir clang
           cd clang
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r383902b.tar.gz -O clang.tar.gz
+          wget https://github.com/techyminati/android_prebuilts_clang_host_linux-x86_clang-6443078 -O clang.tar.gz
           tar -xf clang.tar.gz
           cd ..
 

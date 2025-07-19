@@ -1,20 +1,19 @@
-name: Build Realme SM4250 Kernel (Stable, Clang 11)
+name: Build Realme SM4250 Kernel (Clang 11 + Stock Defconfig)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - stable
+      - stable   # Change this to your kernel branch if different
 
 jobs:
   build:
-    runs-on: ubuntu-24.04  # ✅ Upgraded to latest LTS
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout Kernel Source (Stable Branch)
-        uses: actions/checkout@v4
-        with:
-          ref: stable
+      - name: Clone Kernel Source
+        run: |
+          git clone --depth=1 --branch stable https://github.com/Ponleuz12/kernel_realme_sm4250.git kernel_source
 
       - name: Setup Clang 11.0.1
         run: |
@@ -28,13 +27,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison flex gcc-aarch64-linux-gnu \
-              gcc-arm-linux-gnueabi libssl-dev make python3
+            gcc-arm-linux-gnueabi libssl-dev make python3
 
       - name: Build Kernel
-        run: bash build2.sh
+        working-directory: kernel_source
+        run: bash ../build2.sh
 
-      - name: Upload Image.gz-dtb
+      - name: Upload Kernel Image
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-Image
-          path: Image.gz-dtb
+          path: kernel_source/Image.gz-dtb
